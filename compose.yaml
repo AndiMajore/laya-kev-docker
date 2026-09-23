@@ -1,70 +1,7 @@
-# Everything is configured in .env (copy .env.example). Compose reads it twice:
-# for ${...} interpolation below (build args, ports, GPU, profiles), and via env_file to
-# hand every LAYA_* / KEV_* / HF_* setting to the servers inside the containers.
-#
-# Two interchangeable TypeSafe /v1/systemone servers, selected with COMPOSE_PROFILES:
-#   laya  laya-serve with the Laya encoder checkpoints     (LAYA_PORT, default 8000)
-#   kev   kev.serve with a Qwen3.5-based Kev checkpoint    (KEV_PORT, default 8001)
-
-x-server: &server
-  env_file:
-    - path: .env
-      required: false
-  volumes:
-    - hf-cache:/data/hf
-    # Secret files instead of plain env values (readable by UID 10001); pair each with
-    # its *_FILE variable, e.g. LAYA_API_KEY_FILE=/run/secrets/laya_api_key.
-    # - ./secrets/laya_api_key:/run/secrets/laya_api_key:ro
-    # - ./secrets/kev_api_key:/run/secrets/kev_api_key:ro
-    # - ./secrets/hf_token:/run/secrets/hf_token:ro
-  init: true
-  restart: unless-stopped
-
-services:
-  laya:
-    <<: *server
-    profiles: [laya]
-    build:
-      context: .
-      # `host` if the build cannot resolve DNS (VPNs, systemd-resolved setups).
-      network: ${BUILD_NETWORK:-default}
-      args:
-        LAYA_VERSION: ${LAYA_VERSION:-0.3.9}
-        TORCH_INDEX: ${TORCH_INDEX:-cu128}
-    image: laya-gpu:${LAYA_VERSION:-0.3.9}-${TORCH_INDEX:-cu128}
-    ports:
-      # One variable for host and container port, so they cannot drift apart.
-      - "${LAYA_BIND:-0.0.0.0}:${LAYA_PORT:-8000}:${LAYA_PORT:-8000}"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["${LAYA_GPU_ID:-0}"]
-              capabilities: [gpu]
-
-  kev:
-    <<: *server
-    profiles: [kev]
-    build:
-      context: .
-      dockerfile: kev/Dockerfile
-      network: ${BUILD_NETWORK:-default}
-      args:
-        KEV_REF: ${KEV_REF:-557598fced1dada75dfbf36ed144dce309ac6ceb}
-        TORCH_INDEX: ${TORCH_INDEX:-cu128}
-    image: kev-gpu:${KEV_REF:-557598fced1dada75dfbf36ed144dce309ac6ceb}-${TORCH_INDEX:-cu128}
-    ports:
-      - "${LAYA_BIND:-0.0.0.0}:${KEV_PORT:-8001}:${KEV_PORT:-8001}"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["${KEV_GPU_ID:-${LAYA_GPU_ID:-0}}"]
-              capabilities: [gpu]
-
-volumes:
-  hf-cache:
-    # Fixed name so `make download` (plain docker run) can fill the same cache.
-    name: ${LAYA_CACHE_VOLUME:-laya-gpu-hf-cache}
+# Both servers. Used when COMPOSE_FILE is not set; .env normally picks the files, e.g.
+#   COMPOSE_FILE=compose.laya.yaml                  laya only
+#   COMPOSE_FILE=compose.laya.yaml:compose.kev.yaml both
+# Each file also runs on its own: docker compose -f compose.kev.yaml up -d
+include:
+  - compose.laya.yaml
+  - compose.kev.yaml

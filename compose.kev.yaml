@@ -1,0 +1,41 @@
+# kev (github.com/jaredpalmer/kev) on an NVIDIA GPU, standalone:
+#   docker compose -f compose.kev.yaml up -d
+# Pulls the published image (IMAGE_PREFIX) and builds it locally if it cannot, or with
+# `--build`. All settings come from .env (see .env.example).
+services:
+  kev:
+    image: ${IMAGE_PREFIX:-ghcr.io/andimajore/laya-kev-docker}/kev:${KEV_REF:-557598fced1dada75dfbf36ed144dce309ac6ceb}-${TORCH_INDEX:-cu128}
+    build:
+      context: .
+      dockerfile: kev/Dockerfile
+      # `host` if the build cannot resolve DNS (VPNs, systemd-resolved setups).
+      network: ${BUILD_NETWORK:-default}
+      args:
+        KEV_REF: ${KEV_REF:-557598fced1dada75dfbf36ed144dce309ac6ceb}
+        TORCH_INDEX: ${TORCH_INDEX:-cu128}
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${LAYA_BIND:-0.0.0.0}:${KEV_PORT:-8001}:${KEV_PORT:-8001}"
+    volumes:
+      # Also holds Triton's compiled kernels (TRITON_CACHE_DIR), so restarts warm up fast.
+      - hf-cache:/data/hf
+      # Secret files instead of plain env values (readable by UID 10001); pair each with
+      # its *_FILE variable, e.g. KEV_API_KEY_FILE=/run/secrets/kev_api_key.
+      # - ./secrets/kev_api_key:/run/secrets/kev_api_key:ro
+      # - ./secrets/hf_token:/run/secrets/hf_token:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${KEV_GPU_ID:-${LAYA_GPU_ID:-0}}"]
+              capabilities: [gpu]
+    init: true
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
+    # Fixed name, shared with laya and filled by `make download` (plain docker run).
+    name: ${LAYA_CACHE_VOLUME:-laya-gpu-hf-cache}

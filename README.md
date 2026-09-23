@@ -1,21 +1,25 @@
-# laya-gpu
+# laya-kev-docker
 
 Two interchangeable decision servers in CUDA-enabled containers, configured entirely
 through one `.env` file. Both speak the TypeSafe `POST /v1/systemone` protocol, so a client
 switches between them by changing the port.
 
-| Profile | Server | Model | Port |
+| Compose file | Server | Model | Port |
 | --- | --- | --- | --- |
-| `laya` | [Laya](https://github.com/NandhaKishorM/laya)'s `laya-serve` | ModernBERT / mmBERT encoders (~0.4B), language-routed | 8000 |
-| `kev` | [kev](https://github.com/jaredpalmer/kev)'s `kev.serve` | Qwen3.5-based Kev checkpoints (0.8B–9B) | 8001 |
+| `compose.laya.yaml` | [Laya](https://github.com/NandhaKishorM/laya)'s `laya-serve` | ModernBERT / mmBERT encoders (~0.4B), language-routed | 8000 |
+| `compose.kev.yaml` | [kev](https://github.com/jaredpalmer/kev)'s `kev.serve` | Qwen3.5-based Kev checkpoints (0.8B–9B) | 8001 |
 
-Pick one or both with `COMPOSE_PROFILES` in `.env` (`laya`, `kev` or `laya,kev`).
+Pick one or both with `COMPOSE_FILE` in `.env`, e.g.
+`COMPOSE_FILE=compose.laya.yaml:compose.kev.yaml`. Without it, `compose.yaml` runs both. Each
+file also works on its own: `docker compose -f compose.kev.yaml up -d`.
 
 - **Upstream servers**: `laya[serve]` from PyPI and kev from GitHub, both pinned. Kev gets
   a small wrapper (`kev/kev_serve.py`); see [Kev notes](#kev-notes).
 - **CUDA via PyTorch wheels**: a slim Python base plus torch from the `cu128` index. The
   wheels bundle the CUDA runtime, so the host only needs the NVIDIA driver.
 - **One `.env`**: build args, ports, GPU selection and every `LAYA_*` / `KEV_*` setting.
+- **Prebuilt images**: CI publishes both to GHCR, so building locally is optional; see
+  [Images and CI](#images-and-ci).
 - Non-root (uid 10001), container healthcheck, secrets can be loaded from files
   (`*_FILE`), and weights are kept in a named volume.
 
@@ -30,7 +34,8 @@ Pick one or both with `COMPOSE_PROFILES` in `.env` (`laya`, `kev` or `laya,kev`)
 
 ```bash
 make env        # cp .env.example .env
-make up         # build and start the selected servers in the background
+make pull       # optional: fetch the published images instead of building
+make up         # build (unless pulled) and start the selected servers
 make logs       # wait for "Application startup complete"
 make smoke      # /health + a sample /v1/systemone request, per server
 ```
@@ -41,7 +46,8 @@ make smoke      # /health + a sample /v1/systemone request, per server
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `COMPOSE_PROFILES` | `laya` | servers to run: `laya`, `kev` or `laya,kev` |
+| `COMPOSE_FILE` | `compose.laya.yaml` | servers to run, colon-separated compose files |
+| `IMAGE_PREFIX` | `ghcr.io/andimajore/laya-kev-docker` | registry path of the published images |
 | `LAYA_VERSION` | `0.3.9` | **build**: laya release from PyPI |
 | `KEV_REF` | `557598f…` | **build**: kev commit, tag or branch on GitHub |
 | `TORCH_INDEX` | `cu128` | **build**: PyTorch wheel index (`cu126`, `cu128`, `cu129`, ...) |
@@ -101,6 +107,28 @@ The request body is `{"state": ..., "questions": {...}, "model"?: ...}`, with
 `choice` / `score` / `noul` questions. It is wire-compatible with the TypeSafe Jev
 `/v1/systemone` protocol. For the request format, see the
 [Laya README](https://github.com/NandhaKishorM/laya).
+
+## Images and CI
+
+`.github/workflows/images.yml` builds both images on every push and pull request. For each
+image it:
+- reads `LAYA_VERSION`, `KEV_REF` and `TORCH_INDEX` from `.env.example`, so CI and local
+  builds always use the same versions;
+- imports the server inside the image, since hosted runners have no GPU;
+- on `main`, tags `v*` and manual runs, pushes to GHCR. Pull requests only build and check.
+
+| Image | Tags |
+| --- | --- |
+| `ghcr.io/andimajore/laya-kev-docker/laya` | `<LAYA_VERSION>-<TORCH_INDEX>` (what compose pulls), `latest`, `sha-<commit>`, `v*` |
+| `ghcr.io/andimajore/laya-kev-docker/kev` | `<KEV_REF>-<TORCH_INDEX>` (what compose pulls), `latest`, `sha-<commit>`, `v*` |
+
+Build layers are cached in the registry (`:buildcache`), so a change that doesn't touch
+the dependencies rebuilds in minutes. To move to a new laya release or kev commit, change
+`.env.example`: CI publishes the new tag and the compose files pull it.
+
+`make up` always builds locally. To use the published images, run `make pull` and then
+`docker compose up -d`. GHCR packages start out private; make them public under the
+package settings, or `docker login ghcr.io` first.
 
 ## Kev notes
 
