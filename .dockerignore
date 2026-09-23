@@ -1,0 +1,4 @@
+# Only these files are needed in the build context.
+**
+!docker/entrypoint.py
+!kev/kev_serve.py
