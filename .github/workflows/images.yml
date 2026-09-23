@@ -45,11 +45,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The CUDA wheels make each image several GB; the runner starts with ~14 GB free.
+      # Each image is ~8 GB (CUDA wheels) and the builder briefly holds it more than once
+      # (layers, pip cache, the export for `load`). A stock runner has too little free
+      # disk, so drop the preinstalled SDKs, tool cache and swap first.
       - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Disk before build
+        run: df -h /
 
       - name: Read build settings from .env.example
         run: |
@@ -100,6 +111,7 @@ jobs:
 
       - name: Check image
         run: |
+          df -h /
           docker image ls ${{ matrix.name }}:ci
           docker run --rm --entrypoint python ${{ matrix.name }}:ci -c '${{ matrix.check }}'
 
