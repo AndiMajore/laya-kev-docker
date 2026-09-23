@@ -24,7 +24,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Gated DeltaNet kernels for the Qwen3.5 hybrid backbones; without them transformers falls
 # back to slow reference code (kev's README and Modal image do the same).
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install flash-linear-attention && pip check
+    pip install flash-linear-attention
+
+# causal_conv1d: the short-convolution kernel of the Gated DeltaNet layers; without it
+# transformers warns and uses its reference PyTorch implementation. PyPI only has the
+# source (building it needs nvcc), so install the matching prebuilt wheel from the
+# upstream release: CUDA 12, this torch minor, cxx11 ABI, CPython 3.12, x86_64.
+ARG CAUSAL_CONV1D_VERSION=1.7.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    v="${CAUSAL_CONV1D_VERSION}"; t="${KEV_TORCH_VERSION%.*}"; \
+    pip install "https://github.com/Dao-AILab/causal-conv1d/releases/download/v${v}/causal_conv1d-${v}%2Bcu12torch${t}cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" \
+    && pip check
 
 FROM python:3.12-slim-bookworm AS runtime
 

@@ -134,8 +134,10 @@ package settings, or `docker login ghcr.io` first.
 
 - **Separate image**: kev pins `torch<2.9`, laya's image uses a newer torch, so kev builds
   from `kev/Dockerfile`. It installs kev from a GitHub archive because the `kev` package on
-  PyPI is a different project. It adds `flash-linear-attention` for fast Qwen3.5 kernels,
-  and `gcc` because Triton compiles its launcher at runtime.
+  PyPI is a different project. For fast Qwen3.5 (Gated DeltaNet) kernels it adds
+  `flash-linear-attention` and `causal_conv1d`. `causal_conv1d` comes as the prebuilt
+  upstream wheel, because PyPI only has the source, which needs `nvcc`. It also adds `gcc`,
+  because Triton compiles its launcher at runtime.
 - **Wrapper**: `kev.serve.main()` binds `127.0.0.1` and takes its settings as CLI flags.
   `kev/kev_serve.py` makes the same serving choices but reads `KEV_MODEL` / `KEV_PORT`,
   binds `0.0.0.0` and adds `GET /health`.
@@ -146,6 +148,7 @@ package settings, or `docker login ghcr.io` first.
   `kev-4b` ~9 GB, `kev-9b` ~20 GB. On an 8 GB GPU, `kev-0.8b` runs next to laya; the 4B does
   not fit.
 - **Latency** on an RTX 4060 Laptop GPU, sample request: laya ~55 ms, kev-0.8b ~100–150 ms.
+  `causal_conv1d` does not change short requests; a ~2k-token state went from 288 to 256 ms.
 
 ## Behind a VPN
 
