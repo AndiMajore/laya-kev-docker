@@ -5,7 +5,7 @@
 # only copy it, doubling the disk a builder (e.g. a CI runner) needs.
 FROM python:3.12-slim-bookworm
 
-ARG LAYA_VERSION=0.3.9
+ARG LAYA_VERSION=0.3.20
 ARG TORCH_INDEX=cu128
 LABEL org.opencontainers.image.title="laya-gpu" \
       org.opencontainers.image.description="laya-serve with CUDA (${TORCH_INDEX})" \
