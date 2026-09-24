@@ -48,7 +48,7 @@ make smoke      # /health + a sample /v1/systemone request, per server
 | --- | --- | --- |
 | `COMPOSE_FILE` | `compose.laya.yaml` | servers to run, colon-separated compose files |
 | `IMAGE_PREFIX` | `ghcr.io/andimajore/laya-kev-docker` | registry path of the published images |
-| `LAYA_VERSION` | `0.3.9` | **build**: laya release from PyPI |
+| `LAYA_VERSION` | `0.3.20` | **build**: laya release from PyPI |
 | `KEV_REF` | `557598f…` | **build**: kev commit, tag or branch on GitHub |
 | `TORCH_INDEX` | `cu128` | **build**: PyTorch wheel index (`cu126`, `cu128`, `cu129`, ...) |
 | `BUILD_NETWORK` | `default` | **build**: set to `host` if pip cannot resolve DNS during the build |
